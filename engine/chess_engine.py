@@ -391,7 +391,7 @@ class ChessEngine:
     
     def close(self) -> None:
         """Close the engine connection and cleanup resources."""
-        if self._engine:
+        if hasattr(self, '_engine') and self._engine:
             try:
                 self._engine.quit()
             except Exception:

@@ -8,6 +8,7 @@ A lightweight Python module wrapping the Stockfish engine using `python-chess`. 
 - **Legal Move Validation**: Supports both UCI and SAN notation.
 - **AI Integration**: Interface with Stockfish for best-move generation at variable depths.
 - **Evaluation**: Get centipawn evaluation or mate detection.
+- **Game State Intelligence**: Detect game phase, track material, and evaluate move quality (blunder detection).
 - **CLI Demo**: Includes an interactive command-line interface to play against the AI.
 
 ## 🛠️ Installation
@@ -48,6 +49,7 @@ python main.py --stockfish "path/to/stockfish.exe" --depth 12
 
 ## 💻 API Usage
 
+### Basic Engine Usage
 ```python
 from engine import ChessEngine
 
@@ -66,6 +68,30 @@ with ChessEngine(stockfish_path="path/to/stockfish") as engine:
     
     # Show board
     print(engine.get_board_visual())
+```
+
+### Intelligence Layer (GameStateAnalyzer)
+```python
+from engine import ChessEngine, GameStateAnalyzer
+
+engine = ChessEngine(stockfish_path="...")
+analyzer = GameStateAnalyzer(engine)
+
+# Phase detection
+print(f"Phase: {analyzer.get_game_phase()}")  # Opening, Middlegame, Endgame
+
+# Material balance
+balance = analyzer.get_material_balance()
+print(f"Net Score: {balance.net_balance}")
+
+# Move quality analysis
+analysis = analyzer.evaluate_move_quality("e2e4")
+print(f"Quality: {analysis.quality}")  # Excellent, Good, Inaccuracy, Mistake, Blunder
+
+# Event detection
+events = analyzer.get_position_events()
+if "checkmate" in [e.value for e in events]:
+    print("Game Over!")
 ```
 
 ## ⚖️ License

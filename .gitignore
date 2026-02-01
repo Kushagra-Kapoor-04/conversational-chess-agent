@@ -153,3 +153,7 @@ cython_debug/
 stockfish-windows-x86-64-avx2/
 stockfish.exe
 stockfish/
+.dist/
+.gemini/
+*.log
+
