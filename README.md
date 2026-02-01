@@ -96,5 +96,4 @@ with ChessEngine(stockfish_path="path/to/stockfish") as engine:
     print(engine.get_board_visual())
 ```
 
-## ⚖️ License
-MIT
+
