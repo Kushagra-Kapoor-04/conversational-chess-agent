@@ -9,6 +9,36 @@ from .game_state import (
     MaterialBalance,
     MoveAnalysis,
 )
+from .player_stats import (
+    PlayerStats,
+    MoveQualityStats,
+    EvalLossStats,
+    PhaseStats,
+    StyleIndicators,
+)
+from .adaptive_difficulty import (
+    AdaptiveDifficulty,
+    EngineParams,
+    DifficultyTrend,
+    RecentPerformance,
+)
+from .coach import (
+    Coach,
+    MoveContext,
+)
+from .player_profile import (
+    PlayerProfile,
+    GameSession,
+)
+from .emotion import (
+    EmotionModel,
+    EmotionState,
+    Personality,
+)
+from .supervisor import (
+    GameSupervisor,
+    MoveResult,
+)
 
 __all__ = [
     "ChessEngine",
@@ -18,4 +48,21 @@ __all__ = [
     "PositionEvent",
     "MaterialBalance",
     "MoveAnalysis",
+    "PlayerStats",
+    "MoveQualityStats",
+    "EvalLossStats",
+    "PhaseStats",
+    "StyleIndicators",
+    "AdaptiveDifficulty",
+    "EngineParams",
+    "Coach",
+    "MoveContext",
+    "PlayerProfile",
+    "GameSession",
+    "EmotionModel",
+    "EmotionState",
+    "Personality",
+    "GameSupervisor",
+    "MoveResult",
 ]
+

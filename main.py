@@ -8,7 +8,7 @@ Play against Stockfish at configurable difficulty levels.
 
 import sys
 import argparse
-from engine import ChessEngine
+from engine import GameSupervisor, ChessEngine
 from engine.chess_engine import ChessEngineError, StockfishNotFoundError, IllegalMoveError
 
 
@@ -28,6 +28,7 @@ def print_help():
     print("  fen       - Show current FEN")
     print("  moves     - Show legal moves")
     print("  flip      - Toggle board orientation")
+    print("  status    - Show game status and profiles")
     print("  new       - Start a new game")
     print("  help      - Show this help")
     print("  quit      - Exit the game\n")
@@ -43,7 +44,7 @@ def format_move_for_display(move: str, board_before_fen: str) -> str:
 
 
 def main():
-    """Main game loop."""
+    """Main game loop using GameSupervisor."""
     parser = argparse.ArgumentParser(description="Play chess against Stockfish")
     parser.add_argument(
         "--stockfish", "-s",
@@ -57,7 +58,7 @@ def main():
         default=10,
         choices=range(1, 21),
         metavar="1-20",
-        help="AI difficulty (search depth, default: 10)"
+        help="AI difficulty override (1-20). If not set, adaptive difficulty is used."
     )
     parser.add_argument(
         "--play-as", "-p",
@@ -66,38 +67,86 @@ def main():
         choices=["white", "black"],
         help="Choose your color (default: white)"
     )
+    parser.add_argument(
+        "--mode", "-m",
+        type=str,
+        default="pvc",
+        choices=["pvc", "pvp"],
+        help="Game mode: 'pvc' (Player vs Computer) or 'pvp' (Player vs Player)"
+    )
+    
+    parser.add_argument(
+        "--user", "-u",
+        type=str,
+        default="Player",
+        help="Player username for profile tracking"
+    )
     
     args = parser.parse_args()
     
     print_banner()
     
-    # Initialize engine
+    # Initialize Supervisor
     try:
-        engine = ChessEngine(stockfish_path=args.stockfish, default_depth=args.depth)
-        print(f"✓ Stockfish connected (depth: {args.depth})")
+        supervisor = GameSupervisor(
+            stockfish_path=args.stockfish,
+            player_name=args.user
+        )
+        engine = supervisor.engine 
+        
+        print(f"✓ Stockfish connected.")
+        if args.mode == "pvc":
+            print(f"✓ Profile loaded for: {args.user}")
+            print(f"✓ Rating: {supervisor.profile.rating:.0f}")
+            print(f"✓ Difficulty: Level {supervisor.difficulty.get_difficulty_level()} (Adaptive)")
+        else:
+            print(f"✓ Spectator Mode Active: AI Coach will comment on both players.")
+        
     except StockfishNotFoundError as e:
         print(f"\n✗ Error: {e}")
         print("\nPlease provide the Stockfish path:")
         print("  python main.py --stockfish /path/to/stockfish")
-        sys.exit(1)
-    except ChessEngineError as e:
-        print(f"\n✗ Engine error: {e}")
+        
+        # Offer Mock Mode
+        print("\n" + "!" * 50)
+        print("MISSING ENGINE: Would you like to play in MOCK MODE?")
+        print("In Mock Mode, the AI plays RANDOM moves. Useful for testing UI.")
+        print("!" * 50)
+        choice = input("Enable Mock Mode? (y/n): ").strip().lower()
+        
+        if choice == 'y':
+            try:
+                supervisor = GameSupervisor(player_name=args.user, mock_mode=True)
+                engine = supervisor.engine
+                print(f"✓ Started in MOCK MODE (Random Mover)")
+            except Exception as e_mock:
+                print(f"✗ Mock initialization failed: {e_mock}")
+                sys.exit(1)
+        else:
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"\n✗ Initialization error: {e}")
         sys.exit(1)
     
     # Game state
     flip_board = args.play_as == "black"
     player_color = args.play_as
     
-    print(f"You are playing as: {player_color.upper()}")
-    print_help()
+    if args.mode == "pvc":
+        print(f"You are playing as: {player_color.upper()}")
+        # If player is black, AI moves first
+        if player_color == "black":
+            print("\n🤖 AI is thinking...")
+            fen_before = engine.get_board_fen()
+            ai_move = supervisor.play_ai_move()
+            print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
+            
+    else: # PvP
+        print("Player vs Player Mode (White vs Black)")
+        print("AI Coach is watching...")
     
-    # If player is black, AI moves first
-    if player_color == "black":
-        print("\n🤖 AI is thinking...")
-        ai_move = engine.get_ai_move()
-        fen_before = engine.get_board_fen()
-        engine.make_move(ai_move)
-        print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
+    print_help()
     
     # Main game loop
     try:
@@ -111,12 +160,21 @@ def main():
                 print("\n" + "=" * 50)
                 if result.reason == "checkmate":
                     winner = result.winner.upper() if result.winner else "Nobody"
-                    if (result.winner == player_color):
-                        print("🎉 CHECKMATE! You win!")
-                    else:
-                        print(f"💀 CHECKMATE! {winner} wins!")
+                    print(f"🎉 CHECKMATE! {winner} wins!")
                 else:
                     print(f"🤝 DRAW by {result.reason.replace('_', ' ')}")
+                
+                # Show summary
+                # For PvP, we just show generic summary
+                summary = supervisor.coach.game_summary(
+                    result="draw", # Generic result for summary usage
+                    total_moves=supervisor.current_session_stats.move_quality.total_moves,
+                    blunders=supervisor.current_session_stats.move_quality.blunders,
+                    mistakes=supervisor.current_session_stats.move_quality.mistakes,
+                    excellent_moves=supervisor.current_session_stats.move_quality.excellent_moves,
+                    accuracy=supervisor.current_session_stats.get_accuracy()
+                )
+                print("\n" + summary)
                 print("=" * 50)
                 
                 # Ask to play again
@@ -124,12 +182,11 @@ def main():
                 if response == 'y':
                     engine.reset()
                     print("\n🔄 New game started!")
-                    if player_color == "black":
-                        print("🤖 AI is thinking...")
-                        ai_move = engine.get_ai_move()
-                        fen_before = engine.get_board_fen()
-                        engine.make_move(ai_move)
-                        print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
+                    if args.mode == "pvc" and player_color == "black":
+                         print("🤖 AI is thinking...")
+                         fen_before = engine.get_board_fen()
+                         ai_move = supervisor.play_ai_move()
+                         print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
                     continue
                 else:
                     break
@@ -162,27 +219,34 @@ def main():
                 print_help()
                 continue
             
+            elif cmd == 'status':
+                supervisor.print_status()
+                continue
+            
             elif cmd == 'new':
                 engine.reset()
                 print("\n🔄 New game started!")
-                if player_color == "black":
+                if args.mode == "pvc" and player_color == "black":
                     print("🤖 AI is thinking...")
-                    ai_move = engine.get_ai_move()
                     fen_before = engine.get_board_fen()
-                    engine.make_move(ai_move)
+                    ai_move = supervisor.play_ai_move()
                     print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
                 continue
             
             elif cmd == 'undo':
-                # Undo both AI move and player move
-                undone1 = engine.undo_move()
-                undone2 = engine.undo_move()
-                if undone1 and undone2:
-                    print(f"↩️  Undid moves: {undone1}, {undone2}")
-                elif undone1:
-                    print(f"↩️  Undid move: {undone1}")
+                if args.mode == "pvc":
+                     # Undo both (Player + AI)
+                    undone1 = engine.undo_move()
+                    undone2 = engine.undo_move()
+                    if undone1 and undone2:
+                        print(f"↩️  Undid moves: {undone1}, {undone2}")
+                    elif undone1:
+                        print(f"↩️  Undid move: {undone1}")
                 else:
-                    print("Nothing to undo.")
+                    # Undo single move (PvP)
+                    undone = engine.undo_move()
+                    if undone:
+                        print(f"↩️  Undid move: {undone}")
                 continue
             
             elif cmd == 'eval':
@@ -195,7 +259,7 @@ def main():
                     else:
                         sign = "+" if score >= 0 else ""
                         print(f"📊 Evaluation: {sign}{score:.2f} - {desc}")
-                except ChessEngineError as e:
+                except Exception as e:
                     print(f"Evaluation error: {e}")
                 continue
             
@@ -213,36 +277,44 @@ def main():
                 print(f"Board flipped: viewing from {'Black' if flip_board else 'White'}'s side")
                 continue
             
-            # Try to make the move
-            if not engine.is_legal_move(user_input):
-                print(f"❌ Illegal move: '{user_input}'")
+            # Try to process the move via Supervisor
+            print("Thinking...")
+            result = supervisor.process_player_move(user_input)
+            
+            if not result.is_legal:
+                print(f"❌ {result.error_message}")
                 print(f"   Try: {', '.join(engine.get_legal_moves()[:5])}...")
                 continue
             
-            # Make player's move
-            fen_before = engine.get_board_fen()
-            move_uci = engine.make_move(user_input)
-            print(f"✓ Your move: {format_move_for_display(move_uci, fen_before)}")
+            # Display feedback
+            turn_color = "White" if turn == "White" else "Black" # Wait, turn updated AFTER move? 
+            # Process move executes the move. 
+            # So `turn` variable (captured before move) is correct.
+            # But process_player_move already happened.
+            
+            print(f"✓ {turn} plays: {result.move_san}")
+            if result.feedback:
+                print(f"\n📢 Coach: {result.feedback}\n")
             
             # Check if game ended after player's move
             if engine.is_game_over():
                 continue
             
-            # AI responds
-            print("🤖 AI is thinking...")
-            try:
-                fen_before = engine.get_board_fen()
-                ai_move = engine.get_ai_move()
-                engine.make_move(ai_move)
-                print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
-            except ChessEngineError as e:
-                print(f"AI error: {e}")
-    
+            # AI Response (Only in PvC)
+            if args.mode == "pvc":
+                print("🤖 AI is thinking...")
+                try:
+                    fen_before = engine.get_board_fen()
+                    ai_move = supervisor.play_ai_move()
+                    print(f"AI plays: {format_move_for_display(ai_move, fen_before)}")
+                except Exception as e:
+                    print(f"AI error: {e}")
+
     except KeyboardInterrupt:
         print("\n\nGame interrupted. Goodbye! 👋")
     
     finally:
-        engine.close()
+        supervisor.close()
 
 
 if __name__ == "__main__":

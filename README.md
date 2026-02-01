@@ -4,12 +4,16 @@ A lightweight Python module wrapping the Stockfish engine using `python-chess`. 
 
 ## 🚀 Features
 
-- **Clean API**: Manage chess games with simple methods.
-- **Legal Move Validation**: Supports both UCI and SAN notation.
-- **AI Integration**: Interface with Stockfish for best-move generation at variable depths.
-- **Evaluation**: Get centipawn evaluation or mate detection.
-- **Game State Intelligence**: Detect game phase, track material, and evaluate move quality (blunder detection).
-- **CLI Demo**: Includes an interactive command-line interface to play against the AI.
+- **Robust Wrapper**: Handles engine initialization, move validation, and cleanup.
+- **Game State Analysis**: Tracks material, detects game phases (Opening/Middlegame/Endgame), and evaluates move quality.
+- **Adaptive Difficulty**: AI adjusts strength based on your performance.
+- **Player Profiling**: Tracks rating, strengths (e.g., "Endgame Expert"), and weaknesses (e.g., "Prone to Tilt").
+- **AI Coach**: Provides natural language feedback, move explanations, and tips.
+- **Emotion & Flow**: Detects user frustration ("Tilt") or confidence ("Flow") and adapts coaching style.
+- **Game Modes**:
+  - **PvC**: Player vs Computer (Adaptive).
+  - **PvP**: Player vs Player with AI Spectator commentary.
+- **CLI Interface**: Interactive command-line interface.
 
 ## 🛠️ Installation
 
@@ -36,18 +40,40 @@ Run the interactive CLI:
 python main.py
 
 # Or specify your Stockfish path
-python main.py --stockfish "path/to/stockfish.exe" --depth 12
+python main.py --stockfish "path/to/stockfish.exe"
+
+# Player vs Player (AI Spectator)
+python main.py --mode pvp
+
+# Play as Black
+python main.py --play-as black
 ```
 
 ### CLI Commands
-- `e2e4` / `e4` : Make a move
-- `undo` : Undo the last move pair
-- `eval` : Show engine evaluation
-- `moves` : Show all legal moves
-- `new` : Reset the game
-- `quit` : Exit the program
+- `e2e4` / `e4`: Make a move
+- `status`: Show your rating, emotion state, and difficulty level
+- `eval`: Show engine evaluation
+- `undo`: Undo the last move pair
+- `moves`: Show all legal moves
+- `new`: Reset the game
+- `quit`: Exit the program
 
 ## 💻 API Usage
+
+### Supervisor (Recommended)
+```python
+from engine import GameSupervisor
+
+# Initialize
+sup = GameSupervisor(stockfish_path="path/to/stockfish")
+
+# Process Player Move
+result = sup.process_player_move("e4")
+print(result.feedback)  # "Good move! Controlling the center..."
+
+# Get AI Move (Adaptive)
+ai_move = sup.play_ai_move()
+```
 
 ### Basic Engine Usage
 ```python
@@ -68,30 +94,6 @@ with ChessEngine(stockfish_path="path/to/stockfish") as engine:
     
     # Show board
     print(engine.get_board_visual())
-```
-
-### Intelligence Layer (GameStateAnalyzer)
-```python
-from engine import ChessEngine, GameStateAnalyzer
-
-engine = ChessEngine(stockfish_path="...")
-analyzer = GameStateAnalyzer(engine)
-
-# Phase detection
-print(f"Phase: {analyzer.get_game_phase()}")  # Opening, Middlegame, Endgame
-
-# Material balance
-balance = analyzer.get_material_balance()
-print(f"Net Score: {balance.net_balance}")
-
-# Move quality analysis
-analysis = analyzer.evaluate_move_quality("e2e4")
-print(f"Quality: {analysis.quality}")  # Excellent, Good, Inaccuracy, Mistake, Blunder
-
-# Event detection
-events = analyzer.get_position_events()
-if "checkmate" in [e.value for e in events]:
-    print("Game Over!")
 ```
 
 ## ⚖️ License

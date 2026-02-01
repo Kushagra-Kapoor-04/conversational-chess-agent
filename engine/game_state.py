@@ -257,9 +257,28 @@ class GameStateAnalyzer:
         Raises:
             ValueError: If no engine is available for evaluation
         """
-        if self._engine is None:
+        # Check if engine is available or in mock mode
+        # If engine wrapper has _mock_mode attribute, use it
+        is_mock = False
+        if hasattr(self._engine, '_mock_mode') and self._engine._mock_mode:
+            is_mock = True
+            
+        if self._engine is None and not is_mock:
             raise ValueError("Engine required for move quality evaluation")
         
+        # MOCK MODE FALLBACK
+        if is_mock or self._engine is None:
+            return MoveAnalysis(
+                move=move,
+                quality=MoveQuality.GOOD, # Default to GOOD in mock mode
+                eval_before=0.0,
+                eval_after=0.0,
+                centipawn_loss=0.0,
+                is_best_move=False,
+                best_move="none"
+            )
+            
+        # REAL ENGINE LOGIC
         # Get evaluation before move
         if eval_before is None:
             eval_before, _ = self._engine.evaluate_position()

@@ -67,22 +67,28 @@ class ChessEngine:
         "./stockfish",
     ]
     
-    def __init__(self, stockfish_path: Optional[str] = None, default_depth: int = 15):
+    def __init__(self, stockfish_path: Optional[str] = None, default_depth: int = 15, mock_mode: bool = False):
         """
         Initialize the chess engine.
         
         Args:
             stockfish_path: Path to Stockfish executable. If None, attempts auto-detection.
             default_depth: Default search depth for AI moves (1-30).
+            mock_mode: If True, operates without Stockfish (random mover for testing).
         
         Raises:
-            StockfishNotFoundError: If Stockfish cannot be found at the given path.
+            StockfishNotFoundError: If Stockfish cannot be found and mock_mode is False.
         """
         self._board = chess.Board()
         self._default_depth = max(1, min(30, default_depth))
-        self._stockfish_path = self._find_stockfish(stockfish_path)
+        self._mock_mode = mock_mode
         self._engine: Optional[chess.engine.SimpleEngine] = None
-        self._connect_engine()
+        
+        if not mock_mode:
+            self._stockfish_path = self._find_stockfish(stockfish_path)
+            self._connect_engine()
+        else:
+            self._stockfish_path = None
     
     def _find_stockfish(self, provided_path: Optional[str]) -> str:
         """Find Stockfish executable, checking provided path or common locations."""
@@ -236,6 +242,13 @@ class ChessEngine:
         Raises:
             ChessEngineError: If the engine fails to find a move.
         """
+        if self._mock_mode:
+            import random
+            moves = list(self._board.legal_moves)
+            if not moves:
+                raise ChessEngineError("No legal moves available")
+            return random.choice(moves).uci()
+
         if self._engine is None:
             raise ChessEngineError("Engine not connected")
         
@@ -267,6 +280,23 @@ class ChessEngine:
         Raises:
             ChessEngineError: If evaluation fails.
         """
+        if self._mock_mode:
+            # Simple material count fallback
+            wp = len(self._board.pieces(chess.PAWN, chess.WHITE))
+            wn = len(self._board.pieces(chess.KNIGHT, chess.WHITE))
+            wb = len(self._board.pieces(chess.BISHOP, chess.WHITE))
+            wr = len(self._board.pieces(chess.ROOK, chess.WHITE))
+            wq = len(self._board.pieces(chess.QUEEN, chess.WHITE))
+            
+            bp = len(self._board.pieces(chess.PAWN, chess.BLACK))
+            bn = len(self._board.pieces(chess.KNIGHT, chess.BLACK))
+            bb = len(self._board.pieces(chess.BISHOP, chess.BLACK))
+            br = len(self._board.pieces(chess.ROOK, chess.BLACK))
+            bq = len(self._board.pieces(chess.QUEEN, chess.BLACK))
+            
+            score = (wp - bp) + 3*(wn - bn) + 3*(wb - bb) + 5*(wr - br) + 9*(wq - bq)
+            return (float(score), "Mock Eval (Material)")
+
         if self._engine is None:
             raise ChessEngineError("Engine not connected")
         
